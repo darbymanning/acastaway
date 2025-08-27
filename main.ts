@@ -66,15 +66,52 @@ app.delete("/:id", async (c) => {
 
   try {
     const cache_storage = await caches.open(id)
-    await cache_storage.delete(new Request(new URL(id, c.req.url).toString()))
+    const cache_url = new URL(id, c.req.url).toString()
+    const was_cached = await cache_storage.match(new Request(cache_url))
+
+    await cache_storage.delete(new Request(cache_url))
+
+    // verify deletion
+    const still_cached = await cache_storage.match(new Request(cache_url))
 
     return c.json({
-      message: `Cache purged for ${id}`,
+      message: `Cache purge attempted for ${id}`,
+      was_cached: !!was_cached,
+      still_cached: !!still_cached,
+      cache_url,
+      timestamp: new Date().toISOString(),
     })
   } catch (error) {
     return c.json({
       message: `Failed to purge cache for ${id}`,
       error: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString(),
+    }, 500)
+  }
+})
+
+// Debug endpoint to check cache status
+app.get("/debug/:id", async (c) => {
+  const { id } = c.req.param()
+
+  try {
+    const cache_storage = await caches.open(id)
+    const cache_url = new URL(id, c.req.url).toString()
+    const cached_response = await cache_storage.match(new Request(cache_url))
+
+    return c.json({
+      id,
+      cache_url,
+      has_cached_data: !!cached_response,
+      timestamp: new Date().toISOString(),
+      cache_headers: cached_response
+        ? Object.fromEntries(cached_response.headers.entries())
+        : null,
+    })
+  } catch (error) {
+    return c.json({
+      error: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString(),
     }, 500)
   }
 })
@@ -105,6 +142,11 @@ app.get(
         page,
         limit,
         total_items: feed.items.length,
+        _debug: {
+          timestamp: new Date().toISOString(),
+          cache_control,
+          feed_description: feed.description?.substring(0, 100) + "...",
+        },
       })
     } catch (e) {
       if (e instanceof z.ZodError) return c.json({ errors: e.errors }, 400)
