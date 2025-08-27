@@ -1,9 +1,22 @@
 import { Hono } from "hono"
 import { cache } from "hono/cache"
+import { cors } from "hono/cors"
 import { acast } from "./acast.ts"
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts"
 
 const app = new Hono()
+
+app.use(
+  "*",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: ["*"],
+    exposeHeaders: ["*"],
+    credentials: true,
+    maxAge: 86400,
+  }),
+)
 
 const cache_control = "max-age=3600"
 
