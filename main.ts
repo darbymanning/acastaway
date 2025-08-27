@@ -90,7 +90,7 @@ app.delete("/:id", async (c) => {
   }
 })
 
-// Debug endpoint to check cache status
+// Debug endpoint to check cache status (must be before /:id route)
 app.get("/debug/:id", async (c) => {
   const { id } = c.req.param()
 
