@@ -60,6 +60,25 @@ app.post("/:id", async (c) => {
   })
 })
 
+// Purge cache for a specific ID
+app.delete("/:id", async (c) => {
+  const { id } = c.req.param()
+
+  try {
+    const cache_storage = await caches.open(id)
+    await cache_storage.delete(new Request(new URL(id, c.req.url).toString()))
+
+    return c.json({
+      message: `Cache purged for ${id}`,
+    })
+  } catch (error) {
+    return c.json({
+      message: `Failed to purge cache for ${id}`,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }, 500)
+  }
+})
+
 // Get the feed data for the specific ID with pagination
 app.get(
   "/:id",
