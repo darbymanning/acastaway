@@ -38,17 +38,10 @@ class Acast {
   #strip(str: string) {
     return str
       .replace(
-        "<br /><hr><p style='color:grey; font-size:0.75em;'> Hosted on Acast. See <a style='color:grey;' target='_blank' rel='noopener noreferrer' href='https://acast.com/privacy'>acast.com/privacy</a> for more information.</p>",
+        "<hr><p style='color:grey; font-size:0.75em;'> Hosted on Acast. See <a style='color:grey;' target='_blank' rel='noopener noreferrer' href='https://acast.com/privacy'>acast.com/privacy</a> for more information.</p>",
         "",
       )
-      .replace(
-        "\u003Chr\u003E\u003Cp style='color:grey; font-size:0.75em;'\u003E Hosted on Acast. See \u003Ca style='color:grey;' target='_blank' rel='noopener noreferrer' href='https://acast.com/privacy'\u003Eacast.com/privacy\u003C/a\u003E for more information.\u003C/p\u003E",
-        "",
-      )
-      .replace(
-        "&nbsp;<hr><p style='color:grey; font-size:0.75em;'> Hosted on Acast. See <a style='color:grey;' target='_blank' rel='noopener noreferrer' href='https://acast.com/privacy'>acast.com/privacy</a> for more information.</p>",
-        "",
-      )
+      .trim()
   }
 
   async get(id: string) {
