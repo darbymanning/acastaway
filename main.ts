@@ -44,7 +44,9 @@ app.post("/:id", async (c) => {
   if (error) return c.json(error, error.status)
 
   const cache_storage = await caches.open(id) // open cache for specific ID
-  const cache_url = new URL(id, c.req.url).toString() // construct a full URL for the cache key
+  // construct the actual feed endpoint URL, not the current endpoint
+  const base_url = c.req.url.replace("/" + id, "")
+  const cache_url = `${base_url}/${id}`
   await cache_storage.put(
     new Request(cache_url),
     new Response(JSON.stringify(feed), {
@@ -66,7 +68,9 @@ app.delete("/:id", async (c) => {
 
   try {
     const cache_storage = await caches.open(id)
-    const cache_url = new URL(id, c.req.url).toString()
+    // construct the actual feed endpoint URL, not the current endpoint
+    const base_url = c.req.url.replace("/" + id, "")
+    const cache_url = `${base_url}/${id}`
     const was_cached = await cache_storage.match(new Request(cache_url))
 
     await cache_storage.delete(new Request(cache_url))
@@ -96,7 +100,9 @@ app.get("/debug/:id", async (c) => {
 
   try {
     const cache_storage = await caches.open(id)
-    const cache_url = new URL(id, c.req.url).toString()
+    // construct the actual feed endpoint URL, not the debug endpoint
+    const base_url = c.req.url.replace("/debug/" + id, "")
+    const cache_url = `${base_url}/${id}`
     const cached_response = await cache_storage.match(new Request(cache_url))
 
     return c.json({
