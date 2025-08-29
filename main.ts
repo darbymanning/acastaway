@@ -1,4 +1,5 @@
 import { Hono } from "hono"
+import { cache } from "hono/cache"
 import { cors } from "hono/cors"
 import { acast } from "./acast.ts"
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts"
@@ -45,24 +46,9 @@ app.post("/:id", async (c) => {
 
   const base_url = c.req.url.replace("/" + id, "")
 
-    // clear all cache entries for this ID
-  // since caches.delete() isn't supported in deno, we'll clear entries manually
+    // clear cache by deleting the base entry - hono cache will handle the rest
   const cache_storage = await caches.open(id)
-  
-  // try to clear common cache patterns
-  const cache_patterns = [
-    `${base_url}/${id}`,
-    `${base_url}/${id}?limit=10`,
-    `${base_url}/${id}?limit=50`,
-    `${base_url}/${id}?limit=100`,
-    `${base_url}/${id}?page=1&limit=10`,
-    `${base_url}/${id}?page=1&limit=50`,
-    `${base_url}/${id}?page=1&limit=100`,
-  ]
-  
-  for (const pattern of cache_patterns) {
-    await cache_storage.delete(new Request(pattern))
-  }
+  await cache_storage.delete(new Request(`${base_url}/${id}`))
 
   // store the new feed data for the base URL
   await cache_storage.put(
@@ -94,21 +80,9 @@ app.delete("/:id", async (c) => {
       new Request(`${base_url}/${id}`),
     )
 
-    // try to clear common cache patterns
-    const cache_patterns = [
-      `${base_url}/${id}`,
-      `${base_url}/${id}?limit=10`,
-      `${base_url}/${id}?limit=50`,
-      `${base_url}/${id}?limit=100`,
-      `${base_url}/${id}?page=1&limit=10`,
-      `${base_url}/${id}?page=1&limit=50`,
-      `${base_url}/${id}?page=1&limit=100`,
-    ]
-    
-    for (const pattern of cache_patterns) {
-      await cache_storage.delete(new Request(pattern))
-    }
-    
+        // clear cache by deleting the base entry
+    await cache_storage.delete(new Request(`${base_url}/${id}`))
+
     // verify deletion
     const still_cached = await cache_storage.match(
       new Request(`${base_url}/${id}`),
@@ -158,62 +132,42 @@ app.get("/debug/:id", async (c) => {
 })
 
 // Get the feed data for the specific ID with pagination
-app.get("/:id", async (c) => {
-  const { id } = c.req.param()
+app.get(
+  "/:id",
+  cache({
+    cacheName: (c) => c.req.param().id, // use id as cache name
+    cacheControl: cache_control,
+    wait: true,
+  }),
+  async (c) => {
+    const { id } = c.req.param()
 
-  try {
-    const { page, limit } = pagination_schema.parse(c.req.query())
+    try {
+      const { page, limit } = pagination_schema.parse(c.req.query())
 
-    // check our custom cache first
-    const cache_storage = await caches.open(id)
-    const cache_key = `${c.req.url}`
-    const cached_response = await cache_storage.match(new Request(cache_key))
+      // Fetch feed
+      const { error, feed } = await acast.get(id)
+      if (error) return c.json(error)
 
-    if (cached_response) {
-      // return cached response with proper headers
-      const response = new Response(cached_response.body, {
-        headers: {
-          "content-type": "application/json",
-          "cache-control": cache_control,
+      const paginated_items = paginate(feed.items, page, limit)
+
+      return c.json({
+        title: feed.title,
+        items: paginated_items,
+        page,
+        limit,
+        total_items: feed.items.length,
+        _debug: {
+          timestamp: new Date().toISOString(),
+          cache_control,
+          feed_description: feed.description?.substring(0, 100) + "...",
         },
       })
-      return response
+    } catch (e) {
+      if (e instanceof z.ZodError) return c.json({ errors: e.errors }, 400)
     }
-
-    // fetch fresh data if not cached
-    const { error, feed } = await acast.get(id)
-    if (error) return c.json(error)
-
-    const paginated_items = paginate(feed.items, page, limit)
-    const response_data = {
-      title: feed.title,
-      items: paginated_items,
-      page,
-      limit,
-      total_items: feed.items.length,
-      _debug: {
-        timestamp: new Date().toISOString(),
-        cache_control,
-        feed_description: feed.description?.substring(0, 100) + "...",
-      },
-    }
-
-    // cache the response
-    await cache_storage.put(
-      new Request(cache_key),
-      new Response(JSON.stringify(response_data), {
-        headers: {
-          "content-type": "application/json",
-          "cache-control": cache_control,
-        },
-      }),
-    )
-
-    return c.json(response_data)
-  } catch (e) {
-    if (e instanceof z.ZodError) return c.json({ errors: e.errors }, 400)
-  }
-})
+  },
+)
 
 type ListResponse<T extends "error" | "feed"> = NonNullable<
   Awaited<
