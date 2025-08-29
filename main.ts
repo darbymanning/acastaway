@@ -46,7 +46,7 @@ app.post("/:id", async (c) => {
 
   const base_url = c.req.url.replace("/" + id, "")
 
-    // clear cache by deleting the base entry - hono cache will handle the rest
+  // clear cache by deleting the base entry - hono cache will handle the rest
   const cache_storage = await caches.open(id)
   await cache_storage.delete(new Request(`${base_url}/${id}`))
 
@@ -80,7 +80,7 @@ app.delete("/:id", async (c) => {
       new Request(`${base_url}/${id}`),
     )
 
-        // clear cache by deleting the base entry
+    // clear cache by deleting the base entry
     await cache_storage.delete(new Request(`${base_url}/${id}`))
 
     // verify deletion
