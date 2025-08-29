@@ -1,5 +1,4 @@
 import { Hono } from "hono"
-import { cache } from "hono/cache"
 import { cors } from "hono/cors"
 import { acast } from "./acast.ts"
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts"
@@ -31,6 +30,7 @@ function paginate<T>(items: Array<T>, page: number, limit: number): Array<T> {
   const end = start + limit
   return items.slice(start, end)
 }
+
 app.get("/", (c) => {
   return c.redirect("https://github.com/darbymanning/acastaway", 307)
 })
@@ -41,24 +41,31 @@ app.post("/:id", async (c) => {
 
   // Fetch the feed to immediately repopulate the cache
   const { error, feed } = await acast.get(id)
-  if (error) return c.json(error, error.status)
+  if (error) return c.json(error)
 
-  const cache_storage = await caches.open(id) // open cache for specific ID
-  // construct the actual feed endpoint URL, not the current endpoint
   const base_url = c.req.url.replace("/" + id, "")
-  const cache_url = `${base_url}/${id}`
-  await cache_storage.put(
-    new Request(cache_url),
+
+  // clear all cache entries for this ID
+  // since we're using our own cache system, we can just delete the entire cache storage
+  await caches.delete(id)
+
+  // recreate the cache storage
+  const new_cache_storage = await caches.open(id)
+
+  // store the new feed data for the base URL
+  await new_cache_storage.put(
+    new Request(`${base_url}/${id}`),
     new Response(JSON.stringify(feed), {
       headers: {
         "content-type": "application/json",
         "cache-control": cache_control,
       },
     }),
-  ) // store the new feed
+  )
 
   return c.json({
     message: `Cache refreshed for ${feed.title} (${id})`,
+    cache_cleared: true,
   })
 })
 
@@ -67,22 +74,27 @@ app.delete("/:id", async (c) => {
   const { id } = c.req.param()
 
   try {
-    const cache_storage = await caches.open(id)
-    // construct the actual feed endpoint URL, not the current endpoint
     const base_url = c.req.url.replace("/" + id, "")
-    const cache_url = `${base_url}/${id}`
-    const was_cached = await cache_storage.match(new Request(cache_url))
 
-    await cache_storage.delete(new Request(cache_url))
+    // check if cache exists before deleting
+    const cache_storage = await caches.open(id)
+    const was_cached = await cache_storage.match(
+      new Request(`${base_url}/${id}`),
+    )
 
-    // verify deletion
-    const still_cached = await cache_storage.match(new Request(cache_url))
+    // delete the entire cache storage
+    await caches.delete(id)
+
+    // verify deletion by trying to open cache again
+    const new_cache_storage = await caches.open(id)
+    const still_cached = await new_cache_storage.match(
+      new Request(`${base_url}/${id}`),
+    )
 
     return c.json({
       message: `Cache purge attempted for ${id}`,
       was_cached: !!was_cached,
       still_cached: !!still_cached,
-      cache_url,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
@@ -123,42 +135,62 @@ app.get("/debug/:id", async (c) => {
 })
 
 // Get the feed data for the specific ID with pagination
-app.get(
-  "/:id",
-  cache({
-    cacheName: (c) => c.req.param().id, // use id as cache name
-    cacheControl: cache_control,
-    wait: true,
-  }),
-  async (c) => {
-    const { id } = c.req.param()
+app.get("/:id", async (c) => {
+  const { id } = c.req.param()
 
-    try {
-      const { page, limit } = pagination_schema.parse(c.req.query())
+  try {
+    const { page, limit } = pagination_schema.parse(c.req.query())
 
-      // Fetch feed
-      const { error, feed } = await acast.get(id)
-      if (error) return c.json(error, error.status)
+    // check our custom cache first
+    const cache_storage = await caches.open(id)
+    const cache_key = `${c.req.url}`
+    const cached_response = await cache_storage.match(new Request(cache_key))
 
-      const paginated_items = paginate(feed.items, page, limit)
-
-      return c.json({
-        title: feed.title,
-        items: paginated_items,
-        page,
-        limit,
-        total_items: feed.items.length,
-        _debug: {
-          timestamp: new Date().toISOString(),
-          cache_control,
-          feed_description: feed.description?.substring(0, 100) + "...",
+    if (cached_response) {
+      // return cached response with proper headers
+      const response = new Response(cached_response.body, {
+        headers: {
+          "content-type": "application/json",
+          "cache-control": cache_control,
         },
       })
-    } catch (e) {
-      if (e instanceof z.ZodError) return c.json({ errors: e.errors }, 400)
+      return response
     }
-  },
-)
+
+    // fetch fresh data if not cached
+    const { error, feed } = await acast.get(id)
+    if (error) return c.json(error)
+
+    const paginated_items = paginate(feed.items, page, limit)
+    const response_data = {
+      title: feed.title,
+      items: paginated_items,
+      page,
+      limit,
+      total_items: feed.items.length,
+      _debug: {
+        timestamp: new Date().toISOString(),
+        cache_control,
+        feed_description: feed.description?.substring(0, 100) + "...",
+      },
+    }
+
+    // cache the response
+    await cache_storage.put(
+      new Request(cache_key),
+      new Response(JSON.stringify(response_data), {
+        headers: {
+          "content-type": "application/json",
+          "cache-control": cache_control,
+        },
+      }),
+    )
+
+    return c.json(response_data)
+  } catch (e) {
+    if (e instanceof z.ZodError) return c.json({ errors: e.errors }, 400)
+  }
+})
 
 type ListResponse<T extends "error" | "feed"> = NonNullable<
   Awaited<
@@ -190,7 +222,7 @@ app.get(
       return c.json(item)
     } catch (e) {
       const error = e as ListResponse<"error">
-      return c.json(error, error.status)
+      return c.json(error)
     }
   },
 )
