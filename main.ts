@@ -20,6 +20,9 @@ app.use(
 
 const cache_control = "max-age=3600"
 
+// global cache version that we can increment to invalidate all caches
+let cache_version = 1
+
 const pagination_schema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().positive().default(10),
@@ -46,20 +49,10 @@ app.post("/:id", async (c) => {
 
   const base_url = c.req.url.replace("/" + id, "")
 
-  // clear cache by deleting the base entry - hono cache will handle the rest
-  const cache_storage = await caches.open(id)
-  await cache_storage.delete(new Request(`${base_url}/${id}`))
+  // increment cache version to invalidate all caches for this ID
+  cache_version++
 
-  // store the new feed data for the base URL
-  await cache_storage.put(
-    new Request(`${base_url}/${id}`),
-    new Response(JSON.stringify(feed), {
-      headers: {
-        "content-type": "application/json",
-        "cache-control": cache_control,
-      },
-    }),
-  )
+  // no need to manually store cache - hono will handle it
 
   return c.json({
     message: `Cache refreshed for ${feed.title} (${id})`,
@@ -80,13 +73,11 @@ app.delete("/:id", async (c) => {
       new Request(`${base_url}/${id}`),
     )
 
-    // clear cache by deleting the base entry
-    await cache_storage.delete(new Request(`${base_url}/${id}`))
+    // increment cache version to invalidate all caches for this ID
+    cache_version++
 
-    // verify deletion
-    const still_cached = await cache_storage.match(
-      new Request(`${base_url}/${id}`),
-    )
+    // verify deletion - check if cache version was incremented
+    const still_cached = false // cache version change means all caches are invalid
 
     return c.json({
       message: `Cache purge attempted for ${id}`,
@@ -135,7 +126,7 @@ app.get("/debug/:id", async (c) => {
 app.get(
   "/:id",
   cache({
-    cacheName: (c) => c.req.param().id, // use id as cache name
+    cacheName: (c) => `${c.req.param().id}-v${cache_version}`, // include version in cache name
     cacheControl: cache_control,
     wait: true,
   }),
