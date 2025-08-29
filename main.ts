@@ -45,15 +45,27 @@ app.post("/:id", async (c) => {
 
   const base_url = c.req.url.replace("/" + id, "")
 
-  // clear all cache entries for this ID
-  // since we're using our own cache system, we can just delete the entire cache storage
-  await caches.delete(id)
-
-  // recreate the cache storage
-  const new_cache_storage = await caches.open(id)
+    // clear all cache entries for this ID
+  // since caches.delete() isn't supported in deno, we'll clear entries manually
+  const cache_storage = await caches.open(id)
+  
+  // try to clear common cache patterns
+  const cache_patterns = [
+    `${base_url}/${id}`,
+    `${base_url}/${id}?limit=10`,
+    `${base_url}/${id}?limit=50`,
+    `${base_url}/${id}?limit=100`,
+    `${base_url}/${id}?page=1&limit=10`,
+    `${base_url}/${id}?page=1&limit=50`,
+    `${base_url}/${id}?page=1&limit=100`,
+  ]
+  
+  for (const pattern of cache_patterns) {
+    await cache_storage.delete(new Request(pattern))
+  }
 
   // store the new feed data for the base URL
-  await new_cache_storage.put(
+  await cache_storage.put(
     new Request(`${base_url}/${id}`),
     new Response(JSON.stringify(feed), {
       headers: {
@@ -82,12 +94,23 @@ app.delete("/:id", async (c) => {
       new Request(`${base_url}/${id}`),
     )
 
-    // delete the entire cache storage
-    await caches.delete(id)
-
-    // verify deletion by trying to open cache again
-    const new_cache_storage = await caches.open(id)
-    const still_cached = await new_cache_storage.match(
+    // try to clear common cache patterns
+    const cache_patterns = [
+      `${base_url}/${id}`,
+      `${base_url}/${id}?limit=10`,
+      `${base_url}/${id}?limit=50`,
+      `${base_url}/${id}?limit=100`,
+      `${base_url}/${id}?page=1&limit=10`,
+      `${base_url}/${id}?page=1&limit=50`,
+      `${base_url}/${id}?page=1&limit=100`,
+    ]
+    
+    for (const pattern of cache_patterns) {
+      await cache_storage.delete(new Request(pattern))
+    }
+    
+    // verify deletion
+    const still_cached = await cache_storage.match(
       new Request(`${base_url}/${id}`),
     )
 
