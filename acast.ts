@@ -101,9 +101,10 @@ export class Acast {
 
 // Allow for testing by making the instance configurable
 let acast_instance = new Acast()
-export const acast = acast_instance
+export let acast = acast_instance
 
 // Export function to set mock instance for testing
 export function set_acast_instance(instance: Acast) {
   acast_instance = instance
+  acast = instance
 }

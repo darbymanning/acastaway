@@ -113,7 +113,7 @@ class MockAcast extends Acast {
         description: "A test podcast",
         link: "http://example.com",
         image: "http://example.com/image.jpg",
-        items: this.episodes.map(episode => ({
+        items: this.episodes.map((episode) => ({
           ...episode,
           created: episode.created,
           published: episode.published,
@@ -138,10 +138,10 @@ Deno.test("acastaway cache invalidation tests", async (t) => {
   // set the mock acast instance
   const { set_acast_instance } = await import("./acast.ts")
   set_acast_instance(mock_acast)
-  
+
   // import the real app
   const { app } = await import("./main.ts")
-  
+
   // start the real server on a different port
   const server = Deno.serve({ port: 8001 }, app.fetch)
 
