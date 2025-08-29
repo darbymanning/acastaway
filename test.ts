@@ -268,61 +268,66 @@ Deno.test("acastaway cache invalidation tests", async (t) => {
       },
     )
 
-    await t.step("POST / (webhook) should purge cache for show ID", async () => {
-      // first, add a new episode to verify caching
-      mock_acast.add_episode({
-        id: "episode-webhook",
-        title: "Webhook Episode",
-        description: "A webhook episode",
-        created: "2025-01-07T00:00:00.000Z",
-        published: "2025-01-07T00:00:00.000Z",
-        enclosures: [{
-          url: "http://example.com/webhook.mp3",
-          length: 7000,
-          type: "audio/mpeg",
-        }],
-        itunes: {
-          duration: "70:00",
-          image: "http://example.com/webhook.jpg",
-          summary: "Webhook episode",
-          type: "full" as const,
-        },
-        slug: "webhook-episode",
-      })
+    await t.step(
+      "POST / (webhook) should purge cache for show ID",
+      async () => {
+        // first, add a new episode to verify caching
+        mock_acast.add_episode({
+          id: "episode-webhook",
+          title: "Webhook Episode",
+          description: "A webhook episode",
+          created: "2025-01-07T00:00:00.000Z",
+          published: "2025-01-07T00:00:00.000Z",
+          enclosures: [{
+            url: "http://example.com/webhook.mp3",
+            length: 7000,
+            type: "audio/mpeg",
+          }],
+          itunes: {
+            duration: "70:00",
+            image: "http://example.com/webhook.jpg",
+            summary: "Webhook episode",
+            type: "full" as const,
+          },
+          slug: "webhook-episode",
+        })
 
-      // verify it's not returned due to caching
-      const response1 = await fetch("http://localhost:8001/test-id")
-      const data1 = await response1.json()
-      assertEquals(data1.items.length, 6) // should still be 6, not 7
-      assertEquals(data1.items[0].id, "episode-new") // should still be first
+        // verify it's not returned due to caching
+        const response1 = await fetch("http://localhost:8001/test-id")
+        const data1 = await response1.json()
+        assertEquals(data1.items.length, 6) // should still be 6, not 7
+        assertEquals(data1.items[0].id, "episode-new") // should still be first
 
-      // send webhook POST to root endpoint
-      const webhook_body = {
-        event: "episodePublished",
-        id: "68b19fb2e9dcbdcab9422bcd",
-        title: "asd",
-        status: "published",
-        publishDate: "2025-08-29T12:40:17.897Z",
-        coverUrl: "https://open-static.acast.com/global/images/default-cover.png",
-        audioUrl: "https://assets.pippa.io/shows/test-id/1756471180495-09ec73c1-7d20-4a7d-bada-74640a2ea0f4.m4a"
-      }
+        // send webhook POST to root endpoint
+        const webhook_body = {
+          event: "episodePublished",
+          id: "68b19fb2e9dcbdcab9422bcd",
+          title: "asd",
+          status: "published",
+          publishDate: "2025-08-29T12:40:17.897Z",
+          coverUrl:
+            "https://open-static.acast.com/global/images/default-cover.png",
+          audioUrl:
+            "https://assets.pippa.io/shows/test-id/1756471180495-09ec73c1-7d20-4a7d-bada-74640a2ea0f4.m4a",
+        }
 
-      const webhook_response = await fetch("http://localhost:8001/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(webhook_body),
-      })
+        const webhook_response = await fetch("http://localhost:8001/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(webhook_body),
+        })
 
-      assertEquals(webhook_response.status, 204) // no content
+        assertEquals(webhook_response.status, 204) // no content
 
-      // verify cache is purged and new episode is returned
-      const response2 = await fetch("http://localhost:8001/test-id")
-      const data2 = await response2.json()
-      assertEquals(data2.items.length, 7) // should now be 7
-      assertEquals(data2.items[0].id, "episode-webhook") // new episode should be first
-    })
+        // verify cache is purged and new episode is returned
+        const response2 = await fetch("http://localhost:8001/test-id")
+        const data2 = await response2.json()
+        assertEquals(data2.items.length, 7) // should now be 7
+        assertEquals(data2.items[0].id, "episode-webhook") // new episode should be first
+      },
+    )
   } finally {
     server.shutdown()
   }

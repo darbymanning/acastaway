@@ -20,8 +20,8 @@ app.use(
 
 const cache_control = "max-age=3600"
 
-// global cache version that we can increment to invalidate all caches
-let cache_version = 1
+// per-show cache timestamps that we can update to invalidate caches for specific shows
+const cache_timestamps = new Map<string, number>()
 
 const pagination_schema = z.object({
   page: z.coerce.number().min(1).default(1),
@@ -44,8 +44,8 @@ app.post("/", async (c) => {
     const body = await c.req.json()
     const show_id = body.audioUrl.split("/shows/").pop().split("/")[0]
 
-    // increment cache version to invalidate all caches for this ID
-    cache_version++
+    // update cache timestamp to invalidate all caches for this ID
+    cache_timestamps.set(show_id, Date.now())
 
     // return ok no content
     return c.body(null, 204)
@@ -61,12 +61,12 @@ app.post("/", async (c) => {
 app.post("/:id", async (c) => {
   const { id } = c.req.param()
 
+  // update cache timestamp to invalidate all caches for this ID
+  cache_timestamps.set(id, Date.now())
+
   // Fetch the feed to immediately repopulate the cache
   const { error, feed } = await acast.get(id)
   if (error) return c.json(error)
-
-  // increment cache version to invalidate all caches for this ID
-  cache_version++
 
   // no need to manually store cache - hono will handle it
 
@@ -89,8 +89,8 @@ app.delete("/:id", async (c) => {
       new Request(`${base_url}/${id}`),
     )
 
-    // increment cache version to invalidate all caches for this ID
-    cache_version++
+    // update cache timestamp to invalidate all caches for this ID
+    cache_timestamps.set(id, Date.now())
 
     // verify deletion - check if cache version was incremented
     const still_cached = false // cache version change means all caches are invalid
@@ -142,7 +142,11 @@ app.get("/debug/:id", async (c) => {
 app.get(
   "/:id",
   cache({
-    cacheName: (c) => `${c.req.param().id}-v${cache_version}`, // include version in cache name
+    cacheName: (c) => {
+      const id = c.req.param().id
+      const timestamp = cache_timestamps.get(id) || 0
+      return `${id}-t${timestamp}` // include timestamp in cache name
+    },
     cacheControl: cache_control,
     wait: true,
   }),
