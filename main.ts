@@ -6,6 +6,8 @@ import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts"
 
 const app = new Hono()
 
+const max_age = 3600
+
 app.use(
   "*",
   cors({
@@ -14,11 +16,11 @@ app.use(
     allowHeaders: ["*"],
     exposeHeaders: ["*"],
     credentials: true,
-    maxAge: 86400,
+    maxAge: max_age,
   }),
 )
 
-const cache_control = "max-age=3600"
+const cache_control = `max-age=${max_age}`
 
 // per-show cache timestamps that we can update to invalidate caches for specific shows
 const cache_timestamps = new Map<string, number>()
@@ -35,11 +37,9 @@ function paginate<T>(items: Array<T>, page: number, limit: number): Array<T> {
   return items.slice(start, end)
 }
 
-app.get("/", (c) => {
-  return c.redirect("https://github.com/darbymanning/acastaway", 307)
-})
+app.get("", (c) => c.redirect("https://github.com/darbymanning/acastaway", 307))
 
-app.post("/", async (c) => {
+app.post("", async (c) => {
   try {
     const body = await c.req.json()
     const show_id = body.audioUrl.split("/shows/").pop().split("/")[0]
