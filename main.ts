@@ -47,8 +47,6 @@ app.post("/:id", async (c) => {
   const { error, feed } = await acast.get(id)
   if (error) return c.json(error)
 
-  const base_url = c.req.url.replace("/" + id, "")
-
   // increment cache version to invalidate all caches for this ID
   cache_version++
 
