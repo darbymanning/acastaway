@@ -1,13 +1,13 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@hono/hono@^4.6.5": "4.9.4",
+    "jsr:@hono/hono@^4.9.5": "4.9.5",
     "npm:axios@1.7.7": "1.7.7",
     "npm:rss-to-json@2.1.1": "2.1.1"
   },
   "jsr": {
-    "@hono/hono@4.9.4": {
-      "integrity": "de006e32f3bab18e5a5bed4c75c5e0aaa46958d3653e6646b534a874d690dccc"
+    "@hono/hono@4.9.5": {
+      "integrity": "9979382257287abb33e98893247a97660adc0a9239cf37d57e207e3592040a96"
     }
   },
   "npm": {
@@ -194,7 +194,7 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@hono/hono@^4.6.5"
+      "jsr:@hono/hono@^4.9.5"
     ]
   }
 }
