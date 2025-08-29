@@ -193,5 +193,10 @@ app.get(
   },
 )
 
-// Start the server
-Deno.serve(app.fetch)
+// Export the app for testing
+export { app }
+
+// Start the server only if this is the main module
+if (import.meta.main) {
+  Deno.serve(app.fetch)
+}
