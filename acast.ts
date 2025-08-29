@@ -28,7 +28,7 @@ interface Episode {
   itunes_summary: string
   itunes_duration: string // "00:00:00"
   itunes_episodeType: "full" | "trailer" | "bonus"
-  itunes_image: {
+  itunes_image?: {
     href: string
   }
   media: Record<string, unknown>
@@ -65,7 +65,7 @@ export class Acast {
             id: entry.id,
             itunes: {
               duration: entry.itunes_duration,
-              image: entry.itunes_image.href,
+              image: entry.itunes_image?.href,
               summary: this.#strip(entry.itunes_summary),
               type: entry.itunes_episodeType,
             },

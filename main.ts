@@ -39,6 +39,24 @@ app.get("/", (c) => {
   return c.redirect("https://github.com/darbymanning/acastaway", 307)
 })
 
+app.post("/", async (c) => {
+  try {
+    const body = await c.req.json()
+    const show_id = body.audioUrl.split("/shows/").pop().split("/")[0]
+
+    // increment cache version to invalidate all caches for this ID
+    cache_version++
+
+    // return ok no content
+    return c.body(null, 204)
+  } catch (error) {
+    console.error(error)
+    return c.json({
+      error: error instanceof Error ? error.message : "Unknown error",
+    }, 500)
+  }
+})
+
 // Webhook will call this to refresh the cache for a specific ID
 app.post("/:id", async (c) => {
   const { id } = c.req.param()

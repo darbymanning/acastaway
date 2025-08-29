@@ -104,9 +104,9 @@ Acastaway can automatically refresh the cache whenever you publish a new episode
 2. Enable the **Webhook** switch.
 3. Provide the following server endpoint address:
 
-    https://acastaway.deno.dev/:id
+    https://acastaway.deno.dev
 
-Replace `:id` with your actual show ID.
+The webhook will automatically extract your show ID from the episode's audio URL and refresh the cache accordingly.
 
 Now, whenever you publish a new episode, Acast will trigger a webhook that refreshes the cache for your show in Acastaway.
 
